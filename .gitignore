@@ -1,0 +1,7 @@
+dbg/
+mount/
+out/
+*.img
+kernel.dis.as
+*.tar.bz2
+

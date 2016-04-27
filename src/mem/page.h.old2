@@ -1,0 +1,38 @@
+#ifndef PAGE_H
+#define PAGE_H
+
+#include "../system.h"
+#include "mem.h"
+
+// This source code comes from www.jamesmolloy.co.uk
+
+#define IFB(a) (a/32)
+#define OFB(a) (a%32)
+
+typedef struct page {
+	u32int_t present  : 1;
+	u32int_t rw       : 1;
+	u32int_t user     : 1;
+	u32int_t accessed : 1;
+	u32int_t dirty    : 1;
+	u32int_t unused   : 7;
+	u32int_t frame    :20;
+} page_t;
+
+typedef struct page_table {
+	page_t pages[1024];
+} page_table_t;
+
+typedef struct page_dir {
+	page_table_t* tables[1024];
+	u32int_t tablesPhys[1024];
+	u32int_t physAddr;
+} page_dir_t;
+
+void init_paging ();
+void switch_page_dir (page_dir_t*);
+page_t* get_page (u32int_t, u32int_t, page_dir_t*);
+void page_fault (regs_t);
+
+#endif
+

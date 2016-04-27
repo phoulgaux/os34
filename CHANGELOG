@@ -1,0 +1,44 @@
+	os34 ChangeLog
+
+0.1.1 (20100419-00)
+	Cel: Pierwsza wersja nadająca się do użytku.
+		- statyczne GDT i dynamiczne IDT (na razie tylko ISRy wyjątków procesora)
+		- podstawowy sterownik VGA (dla trybu tekstowego 80x25 - do zmiany w odp.
+			pliku)
+		- prosta biblioteka wyświetlająca (podstawa w vga.c, reszta w stdio.c):
+				- print(u8int_t*) (vga.c) - wyświetlanie łańcuchów (obsługa \n, \t, \r)
+				- putch(u8int_t) (vga.c) - wyświetlanie pojedyńczych znaków
+				- print_int(s32int_t) (stdio.c) - wyświetlanie liczby decymalnej max.
+				  dword
+				- print_hex(s32int_t) (stdio.c) - wyświetlanie liczby heksadecymalnej
+				  max. dword
+		- inne niezbędne rzeczy
+
+0.1.2 (20100420-00)
+	Cel: Wprowadzenie przerwań sprzętowych (co najmn. PIT i klawiatura).
+		- obsługa przerwań sprzętowych (PIT i klawiatura)
+		- dodanie funkcji getch()
+
+0.1.3 (20100708-00)
+	Cel: Działająca konsola z wczytywaniem poleceń
+		- baza
+		- przyjmowanie poleceń
+		- komendy ver, panic, getch, exit
+		- podstawowa obsługa CPUID (typ procesora, technologie wspierane)
+
+0.1.4 (20100906-00)
+	Cel: Blokowe UI i obsługa FDD
+		- podstawa interfejsu BlockUI
+		- cztery style obramowań (pojedyncze, podwójne (domyślne), dwa rodzaje
+			pogrubienia)
+		- cztery symbole okien (?, !, X, kwadracik)
+		- obsługa komunikatów na dolnej belce (trzy typy: błąd, ostrzeżenie,
+			nieokreślony)
+		- funkcje wyświetlające oparte na współrzędnych:
+				- UIPutCh(), UIPutChAtt() - pojedyncze znaki
+				- UIPrint() - ciągi znakowe
+				- UIDrawWindow(), UIDrawComp() - okna i elementy okien
+		- komponent label (etykieta)
+		- wait() - czekanie (w setnych sekundy) - niekompletne
+		- podstawa sterownika FDC (kontrolera FDD)
+

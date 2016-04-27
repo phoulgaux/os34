@@ -1,0 +1,152 @@
+#include "page.h"
+
+u32int_t *frames;
+u32int_t nframes;
+extern u32int_t end;
+u32int_t plac_addr = (u32int_t)&end;
+page_dir_t* krnl_dir=0;
+page_dir_t* curr_dir=0;
+
+u32int_t kmalloc_int(u32int_t sz, s32int_t align, u32int_t *phys) {
+    if (align==1&&(plac_addr&0xFFFFF000)) {
+        plac_addr &= 0xFFFFF000;
+        plac_addr += 0x1000;
+    }
+    if (phys)
+        *phys = plac_addr;
+    u32int_t tmp = plac_addr;
+    plac_addr += sz;
+    return tmp;
+}
+
+u32int_t kmalloc_a(u32int_t sz) {
+    return kmalloc_int(sz, 1, 0);
+}
+
+u32int_t kmalloc_p(u32int_t sz, u32int_t *phys) {
+    return kmalloc_int(sz, 0, phys);
+}
+
+u32int_t kmalloc_ap(u32int_t sz, u32int_t *phys) {
+    return kmalloc_int(sz, 1, phys);
+}
+
+u32int_t kmalloc(u32int_t sz) {
+    return kmalloc_int(sz, 0, 0);
+}
+
+static void frame_set(u32int_t frame_addr) {
+	u32int_t frame = frame_addr/0x1000;
+	u32int_t index = BIT_INDEX(frame);
+	u32int_t offset= BIT_OFFSET(index);
+	frames[index] |= (1<<offset);
+}
+
+static void frame_clear(u32int_t frame_addr) {
+	u32int_t frame = frame_addr/0x1000;
+	u32int_t index = BIT_INDEX(frame);
+	u32int_t offset= BIT_OFFSET(index);
+	frames[index] &= ~(1<<offset);
+}
+
+static u32int_t frame_test(u32int_t frame_addr) {
+	u32int_t frame = frame_addr/0x1000;
+	u32int_t index = BIT_INDEX(frame);
+	u32int_t offset= BIT_OFFSET(index);
+	return (frames[index]&(1<<offset));
+}
+
+static u32int_t frame_first() {
+	u32int_t i,j,t;
+	for(i=0;i<BIT_INDEX(nframes);i++)
+		if(frames[i]!=0xFFFFFFFF)
+			for(j=0;j<32;j++) {
+				t=0x1<<j;
+				if(!(frames[i]&t))
+					return i*32+j;
+			}
+}
+
+void frame_alloc(page_t* page, s32int_t iskrnl, s32int_t iswrtbl) {
+	if(page->frame!=0)
+		return;
+	else {
+		u32int_t index = frame_first();
+		if(index==(u32int_t)-1)
+			panic(PGERR_NOFFRMS);
+		frame_set(index*0x1000);
+		page->present=1;
+		page->rw=(iswrtbl)?1:0;
+		page->user=(iskrnl)?0:1;
+		page->frame=index;
+	}
+}
+
+void frame_free(page_t* page) {
+	u32int_t frame;
+	if(!(frame=page->frame))
+		return;
+	frame_clear(frame);
+	page->frame=0;
+}
+
+void page_dir_switch(page_dir_t* dir) {
+	curr_dir=dir;
+	__asm__ __volatile__ ("mov %0, %%cr3"::"r"(dir->tables_phys));
+	u32int_t cr0;
+	__asm__ __volatile__ ("mov %%cr0, %0":"=r"(cr0));
+	cr0|=0x80000000;
+	__asm__ __volatile__ ("mov %0, %%cr0"::"r"(cr0));
+}
+
+page_t* page_get(u32int_t address, s32int_t make, page_dir_t* dir) {
+	address /= 0x1000;
+	u32int_t index = address / 1024;
+	if (dir->tables[index])
+		return &dir->tables[index]->pages[address%1024];
+	else if (make) {
+		u32int_t tmp;
+		dir->tables[index] = (page_table_t*)kmalloc_ap(sizeof(page_table_t),&tmp);
+		memset(dir->tables[index],0,0x1000);
+		dir->tables_phys[index]=tmp|0x07;
+		return &dir->tables[index]->pages[address%1024];
+	}
+	else
+		return 0;
+}
+
+void page_fault(regs_t regs) {
+	u32int_t fault_addr;
+	__asm__ __volatile__ ("mov %%cr2, %0":"=r"(fault_addr));
+	int present  = !(regs.err_code&0x1);
+	int rw       = regs.err_code&0x2;
+	int user     = regs.err_code&0x4;
+	int reserved = regs.err_code&0x8;
+	int id       = regs.err_code&0x10;
+	
+	print("Page fault ( ");
+	if(present)  print("present ");
+	if(rw)       print("read-only ");
+	if(user)     print("user-mode ");
+	if(reserved) print("reserved ");
+	print(") at ");
+	print_hex(fault_addr);
+	putch('\n');
+	panic(PGERR_FAULT);
+}
+
+void init_paging() {
+	s32int_t i;
+	u32int_t mem_end = 0x10000000; // 16MB
+	nframes = mem_end/0x1000;
+	frames  = (u32int_t*)kmalloc(BIT_INDEX(nframes));
+	memset(frames,0,BIT_INDEX(nframes));
+	krnl_dir=(page_dir_t*)kmalloc_a(sizeof(page_dir_t));
+	memset(krnl_dir,0,sizeof(page_dir_t));
+	curr_dir=krnl_dir;
+	for(i=0;i<plac_addr;i+=0x1000)
+		frame_alloc(page_get(i,1,krnl_dir),0,0);
+	reg_int_handler(14,page_fault);
+	page_dir_switch(krnl_dir);
+}
+
